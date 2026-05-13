@@ -1,13 +1,43 @@
+import os
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
 
 def format_docs(docs):
-    return "\n\n".join([
-        f"[Source: {doc.metadata.get('source', 'unknown')}]\n{doc.page_content}"
-        for doc in docs
-    ])
+    formatted = []
+    for doc in docs:
+        meta     = doc.metadata
+        filetype = meta.get("file_type", "")
+        source   = os.path.basename(meta.get("source", "unknown"))
+
+        if filetype == "pdf":
+            page     = meta.get("page", None)
+            location = f"Page {page + 1}" if page is not None else ""
+
+        elif filetype == "txt":
+            start_idx = meta.get("start_index", None)
+            location  = f"Around character {start_idx}" if start_idx else ""
+
+        elif filetype == "csv":
+            row      = meta.get("row", None)
+            location = f"Row {row}" if row else ""
+
+        elif filetype == "docx":
+            total_p  = meta.get("total_paragraphs", None)
+            location = f"~{total_p} paragraphs total" if total_p else ""
+
+        else:
+            location = ""
+
+        label = f"[Source: {source}"
+        if location:
+            label += f" | {location}"
+        label += "]"
+
+        formatted.append(f"{label}\n{doc.page_content}")
+
+    return "\n\n".join(formatted)
 
 def rerank_docs(query, docs, top_n=3):
     """
