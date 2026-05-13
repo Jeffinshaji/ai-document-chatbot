@@ -1,0 +1,71 @@
+# ═══════════════════════════════════════════════════════════════
+#  RAG Project — Central Configuration
+#  All sensitive keys (API keys) stay in .env
+#  Everything else lives here
+# ═══════════════════════════════════════════════════════════════
+
+# ── Application ─────────────────────────────────────────────────
+app:
+  title: "DocMind — RAG Chat"
+  version: "1.0.0"
+  description: "Retrieval-Augmented Generation API"
+
+# ── Paths ────────────────────────────────────────────────────────
+paths:
+  data_dir: "./data"
+  faiss_index: "./faiss_index"
+  logs_dir: "./logs"
+
+# ── Logging ──────────────────────────────────────────────────────
+logging:
+  level: "INFO"                   # DEBUG | INFO | WARNING | ERROR | CRITICAL
+  log_file: "rag_app.log"         # written inside paths.logs_dir
+  max_bytes: 5242880              # 5 MB per file
+  backup_count: 3                 # keep last 3 rotated files
+  format: "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+  date_format: "%Y-%m-%d %H:%M:%S"
+
+# ── LLM ──────────────────────────────────────────────────────────
+llm:
+  model_name: "gpt-4o-mini"
+  temperature: 0
+
+# ── Embeddings ───────────────────────────────────────────────────
+embeddings:
+  model_name: "text-embedding-ada-002"
+  sample_text: "Sample text to get embedding dimensions."
+
+# ── Vector Store (FAISS HNSW) ────────────────────────────────────
+vectorstore:
+  hnsw_m: 32                      # HNSW M parameter — higher = more accurate, slower build
+  metric: "METRIC_L2"             # L2 (Euclidean) distance
+
+# ── Retriever ────────────────────────────────────────────────────
+retriever:
+  k: 10                           # number of docs to retrieve before reranking
+
+# ── Reranker ─────────────────────────────────────────────────────
+reranker:
+  top_n: 3                        # top N docs to keep after reranking
+
+# ── Text Splitter ────────────────────────────────────────────────
+splitter:
+  chunk_size: 1000
+  chunk_overlap: 200
+  add_start_index: true
+
+# ── Loader ───────────────────────────────────────────────────────
+loader:
+  encoding: "utf-8"
+  supported_extensions:
+    - ".txt"
+    - ".csv"
+    - ".docx"
+    - ".pdf"
+
+# ── API ──────────────────────────────────────────────────────────
+api:
+  title: "RAG API"
+  cors_origins:
+    - "*"
+  poll_interval_ms: 15000         # frontend polling interval in milliseconds

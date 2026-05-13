@@ -1,0 +1,43 @@
+2026-05-13 15:37:56 | INFO     | faiss.loader | Loading faiss with AVX2 support.
+2026-05-13 15:37:56 | INFO     | faiss.loader | Successfully loaded faiss with AVX2 support.
+2026-05-13 15:37:57 | INFO     | __main__ | ============================================================
+2026-05-13 15:37:57 | INFO     | __main__ | DocMind RAG — CLI mode starting up
+2026-05-13 15:37:57 | INFO     | __main__ | ============================================================
+2026-05-13 15:37:57 | INFO     | __main__ | Step 1/4 — Loading documents from './data'...
+2026-05-13 15:37:57 | INFO     | src.loader | Loading documents from directory: './data'
+2026-05-13 15:37:57 | INFO     | src.loader | Document loading complete | total_files_loaded=0 | total_documents=0
+2026-05-13 15:37:57 | WARNING  | __main__ | No documents found in './data'. Please add at least one .txt, .docx, .csv, or .pdf file.
+2026-05-13 15:38:47 | INFO     | faiss.loader | Loading faiss with AVX2 support.
+2026-05-13 15:38:47 | INFO     | faiss.loader | Successfully loaded faiss with AVX2 support.
+2026-05-13 15:38:47 | INFO     | __main__ | ============================================================
+2026-05-13 15:38:47 | INFO     | __main__ | DocMind RAG — CLI mode starting up
+2026-05-13 15:38:47 | INFO     | __main__ | ============================================================
+2026-05-13 15:38:47 | INFO     | __main__ | Step 1/4 — Loading documents from './data'...
+2026-05-13 15:38:47 | INFO     | src.loader | Loading documents from directory: './data'
+2026-05-13 15:38:47 | INFO     | src.loader | Loaded TXT  | file='Essay kerala.txt' | pages/docs=1
+2026-05-13 15:38:47 | INFO     | src.loader | Document loading complete | total_files_loaded=1 | total_documents=1
+2026-05-13 15:38:47 | INFO     | __main__ | Loaded 1 raw document(s).
+2026-05-13 15:38:47 | INFO     | __main__ | Step 2/4 — Chunking documents...
+2026-05-13 15:38:47 | INFO     | src.processor | Splitting 1 document(s) | chunk_size=1000 | chunk_overlap=200 | add_start_index=True
+2026-05-13 15:38:47 | INFO     | src.processor | Splitting complete | input_docs=1 | output_chunks=4 | avg_chunks_per_doc=4.0
+2026-05-13 15:38:47 | INFO     | __main__ | Created 4 chunk(s).
+2026-05-13 15:38:47 | INFO     | __main__ | Step 3/4 — Initialising FAISS HNSW vector store...
+2026-05-13 15:38:47 | INFO     | src.database | Initialising vector store | index_path=./faiss_index
+2026-05-13 15:38:48 | INFO     | src.database | Existing FAISS index found at './faiss_index'. Loading from disk...
+2026-05-13 15:38:48 | INFO     | src.database | FAISS index loaded successfully. Adding 4 new document(s)...
+2026-05-13 15:38:50 | INFO     | httpx | HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2026-05-13 15:38:50 | INFO     | src.database | Index updated and saved to './faiss_index'.
+2026-05-13 15:38:50 | INFO     | __main__ | Vector store ready.
+2026-05-13 15:38:50 | INFO     | __main__ | Step 4/4 — Building RAG chain...
+2026-05-13 15:38:50 | INFO     | src.chain | Creating QA chain | model=gpt-4o-mini | temperature=0 | k=10 | top_n=3 | filter=none
+2026-05-13 15:38:51 | INFO     | src.chain | QA chain created successfully.
+2026-05-13 15:38:51 | INFO     | __main__ | RAG chain ready. Entering interactive Q&A loop.
+2026-05-13 15:39:26 | INFO     | __main__ | User query received | length=40
+2026-05-13 15:39:28 | INFO     | httpx | HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2026-05-13 15:39:30 | INFO     | httpx | HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-13 15:39:30 | INFO     | __main__ | Response generated | length=85
+2026-05-13 15:39:56 | INFO     | __main__ | User query received | length=34
+2026-05-13 15:39:57 | INFO     | httpx | HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2026-05-13 15:39:58 | INFO     | httpx | HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-13 15:39:58 | INFO     | __main__ | Response generated | length=92
+2026-05-13 15:40:03 | INFO     | __main__ | User exited the CLI loop.
