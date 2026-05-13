@@ -2,17 +2,15 @@ import os
 import shutil
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from src.loader import load_documents
 from src.processor import split_documents
-from src.database import create_vector_store
+from src.database import create_vector_store, get_available_sources
 from src.chain import create_qa_chain
 
-# PDF support patch — add to loader if not present
 from langchain_community.document_loaders import PyPDFLoader
 
 load_dotenv()
@@ -26,9 +24,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Global state ────────────────────────────────────────────────
-rag_chain = None
-uploaded_files: list[str] = []
+# ── Global state ─────────────────────────────────────────────────
+vector_db  = None   # kept alive for metadata filtering
+rag_chain  = None   # default chain (no filter)
 
 DATA_DIR = "./data"
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -36,12 +34,12 @@ os.makedirs(DATA_DIR, exist_ok=True)
 ALLOWED_EXTENSIONS = {".txt", ".csv", ".docx", ".pdf"}
 
 
-# ── Patched loader that also handles PDF ────────────────────────
+# ── Patched loader with PDF support ──────────────────────────────
 def load_documents_with_pdf(directory_path: str):
     documents = []
     for file in os.listdir(directory_path):
         path = os.path.join(directory_path, file)
-        ext = os.path.splitext(file)[1].lower()
+        ext  = os.path.splitext(file)[1].lower()
         try:
             if ext == ".txt":
                 from langchain_community.document_loaders import TextLoader
@@ -60,28 +58,31 @@ def load_documents_with_pdf(directory_path: str):
 
 
 def rebuild_pipeline():
-    """Re-index everything in ./data and rebuild the RAG chain."""
-    global rag_chain
+    """Re-index all files in ./data and rebuild the RAG chain."""
+    global vector_db, rag_chain
     raw_docs = load_documents_with_pdf(DATA_DIR)
     if not raw_docs:
-        rag_chain = None
+        vector_db = None
+        rag_chain  = None
         return False
-    chunks = split_documents(raw_docs)
-    vector_db = create_vector_store(chunks)
-    rag_chain = create_qa_chain(vector_db)
+    chunks     = split_documents(raw_docs)
+    vector_db  = create_vector_store(chunks)
+    rag_chain  = create_qa_chain(vector_db)   # default: no filter
     return True
 
 
-# ── Models ──────────────────────────────────────────────────────
+# ── Request / Response models ────────────────────────────────────
 class ChatRequest(BaseModel):
-    question: str
+    question      : str
+    source_filter : str | None = None   # optional filename to filter by
 
 
 class ChatResponse(BaseModel):
-    answer: str
+    answer  : str
+    sources : list[str] = []
 
 
-# ── Routes ──────────────────────────────────────────────────────
+# ── Routes ───────────────────────────────────────────────────────
 
 @app.get("/")
 def root():
@@ -90,9 +91,8 @@ def root():
 
 @app.post("/upload")
 async def upload_files(files: list[UploadFile] = File(...)):
-    """Accept one or more files, save to ./data, rebuild the pipeline."""
-    global uploaded_files
-    saved = []
+    """Accept files, save to ./data, rebuild the pipeline."""
+    saved    = []
     rejected = []
 
     for upload in files:
@@ -104,64 +104,94 @@ async def upload_files(files: list[UploadFile] = File(...)):
         with open(dest, "wb") as f:
             shutil.copyfileobj(upload.file, f)
         saved.append(upload.filename)
-        if upload.filename not in uploaded_files:
-            uploaded_files.append(upload.filename)
 
     if not saved:
         raise HTTPException(status_code=400, detail="No valid files uploaded.")
 
-    # Rebuild vector store + chain
     ok = rebuild_pipeline()
     return {
-        "status": "ready" if ok else "error",
-        "saved": saved,
-        "rejected": rejected,
-        "total_files": len(uploaded_files),
+        "status"      : "ready" if ok else "error",
+        "saved"       : saved,
+        "rejected"    : rejected,
+        "total_files" : len(saved),
     }
 
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
-    """Answer a question using the RAG chain."""
-    if rag_chain is None:
+    """
+    Answer a question using the RAG chain.
+    Optionally filter by a specific source file.
+    """
+    if vector_db is None:
         raise HTTPException(
             status_code=400,
             detail="No documents loaded yet. Please upload files first.",
         )
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
+
     try:
-        answer = rag_chain.invoke(req.question)
-        return ChatResponse(answer=answer)
+        # If source_filter provided — create filtered chain on the fly
+        # Otherwise use default chain (searches all files)
+        if req.source_filter:
+            chain = create_qa_chain(vector_db, source_filter=req.source_filter)
+        else:
+            chain = rag_chain
+
+        answer = chain.invoke(req.question)
+
+        # Return available source filenames alongside the answer
+        sources = get_available_sources(vector_db) if vector_db else []
+
+        return ChatResponse(answer=answer, sources=sources)
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/files")
 def list_files():
-    """Return the list of currently loaded files."""
-    files = [f for f in os.listdir(DATA_DIR)
-             if os.path.splitext(f)[1].lower() in ALLOWED_EXTENSIONS]
+    """Return list of currently loaded files."""
+    files = [
+        f for f in os.listdir(DATA_DIR)
+        if os.path.splitext(f)[1].lower() in ALLOWED_EXTENSIONS
+    ]
     return {"files": files}
+
+
+@app.get("/sources")
+def list_sources():
+    """Return unique source filenames available for filtering."""
+    if vector_db is None:
+        return {"sources": []}
+    return {"sources": get_available_sources(vector_db)}
 
 
 @app.delete("/files/{filename}")
 def delete_file(filename: str):
-    """Remove a file from ./data and rebuild the pipeline."""
+    """Remove a file and rebuild the pipeline."""
     path = os.path.join(DATA_DIR, filename)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="File not found.")
     os.remove(path)
-    if filename in uploaded_files:
-        uploaded_files.remove(filename)
+
+    # Clear saved FAISS index so it rebuilds cleanly
+    if os.path.exists("./faiss_index"):
+        shutil.rmtree("./faiss_index")
+
     ok = rebuild_pipeline()
     return {"status": "ready" if ok else "empty", "deleted": filename}
 
 
 @app.get("/status")
 def status():
+    files = [
+        f for f in os.listdir(DATA_DIR)
+        if os.path.splitext(f)[1].lower() in ALLOWED_EXTENSIONS
+    ]
     return {
-        "ready": rag_chain is not None,
-        "files": len([f for f in os.listdir(DATA_DIR)
-                      if os.path.splitext(f)[1].lower() in ALLOWED_EXTENSIONS]),
+        "ready"   : rag_chain is not None,
+        "files"   : len(files),
+        "sources" : get_available_sources(vector_db) if vector_db else [],
     }
